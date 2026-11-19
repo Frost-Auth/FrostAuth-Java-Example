@@ -37,18 +37,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * FrostAuth SDK — Java port.
- *
- * Mirrors sdk/frostauth.js wire behavior: every response is Ed25519-verified
- * over "timestamp\nnonce\nmethod\npath\nstatus\nbody" (±60s skew, pinned key
- * IDs), init() pins the server key against the key baked into this build,
- * offline assertions are verified locally when the network is gone, and a
- * DNS-hijack tripwire refuses loopback/private answers before any licence
- * material is sent.
- *
- * Requires JDK 17+. Zero external dependencies.
- */
 public final class FrostAuth {
 
     public static final String SDK_VERSION = "1.0.0";
@@ -57,7 +45,6 @@ public final class FrostAuth {
     static final int MAX_RETRY_AFTER_SECONDS = 10;
     static final String ASSERTION_PREFIX = "frostauth:assertion:v1";
 
-    /** Signing keys baked into this build (TOFU). */
     public static final Map<String, String> PUBLIC_KEYS = buildPublicKeys();
 
     private static Map<String, String> buildPublicKeys() {
@@ -66,7 +53,6 @@ public final class FrostAuth {
         return Map.copyOf(m);
     }
 
-    // ── construction ─────────────────────────────────────────────────────────
 
     private final String owner;
     private final String product;
@@ -83,8 +69,8 @@ public final class FrostAuth {
     private final SecureRandom random = new SecureRandom();
 
     private final Object lock = new Object();
-    private Map<String, PublicKey> keys = new LinkedHashMap<>();     // id -> Ed25519 key
-    private Map<String, byte[]> rawKeys = new LinkedHashMap<>();     // id -> raw 32 bytes
+    private Map<String, PublicKey> keys = new LinkedHashMap<>();
+    private Map<String, byte[]> rawKeys = new LinkedHashMap<>();
     private Map<String, Object> app;
     private Map<String, Object> license;
     private Map<String, Object> productInfo;
@@ -102,12 +88,11 @@ public final class FrostAuth {
     private boolean activated;
     private boolean closed;
 
-    // Event hooks — assign before startHeartbeat(), called from the heartbeat thread.
     public Consumer<Map<String, Object>> onActivated;
     public Consumer<Map<String, Object>> onLoggedIn;
     public Consumer<Map<String, Object>> onValidated;
-    public BiConsumer<String, String> onUpdateAvailable;             // (current, latest)
-    public TriConsumer<FrostAuthError, Long, Boolean> onOffline;     // (err, seconds, verified)
+    public BiConsumer<String, String> onUpdateAvailable;
+    public TriConsumer<FrostAuthError, Long, Boolean> onOffline;
     public Consumer<FrostAuthError> onInvalid;
     public Consumer<FrostAuthError> onNeedsActivation;
 
@@ -147,9 +132,7 @@ public final class FrostAuth {
         this.http = HttpClient.newBuilder().connectTimeout(timeout).build();
     }
 
-    // ── public API ───────────────────────────────────────────────────────────
 
-    /** Fetches the public catalog and pins the server's signing key (TOFU). */
     public Map<String, Object> init() {
         assertRealHost();
         String path = "/api/v1/settings/catalog/" + enc(owner) + "/" + enc(product);
@@ -183,7 +166,6 @@ public final class FrostAuth {
         return snapshot();
     }
 
-    /** Binds a licence key to this machine and opens a session. */
     public Map<String, Object> activate(String key, String buildHash, String label) {
         requireInit();
         if (key == null || key.isBlank()) {
@@ -208,9 +190,7 @@ public final class FrostAuth {
         return snapshot();
     }
 
-    /** Creates an app user from a licence key, then opens a session. */
-    public Map<String, Object> register(String key, String username, String password,
-                                        String buildHash, String label) {
+    public Map<String, Object> register(String key, String username, String password, String buildHash, String label) {
         requireInit();
         if (key == null || key.isBlank()) {
             throw new FrostAuthError("licence key is required", FrostAuthError.Codes.CONFIG, 0, false);
@@ -236,9 +216,7 @@ public final class FrostAuth {
         return snapshot();
     }
 
-    /** Signs in an app user and opens a session. */
-    public Map<String, Object> login(String username, String password, String twofa,
-                                     String buildHash, String label) {
+    public Map<String, Object> login(String username, String password, String twofa, String buildHash, String label) {
         requireInit();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("owner", owner);
@@ -262,7 +240,6 @@ public final class FrostAuth {
         return snapshot();
     }
 
-    /** Attaches a licence key to an existing app user. */
     public Map<String, Object> upgrade(String username, String password, String key) {
         requireInit();
         Map<String, Object> body = new LinkedHashMap<>();
@@ -274,7 +251,6 @@ public final class FrostAuth {
         return requestEnvelope("POST", "/api/v1/sdk/upgrade", body);
     }
 
-    /** Invalidates the session server-side and closes the client. */
     public Map<String, Object> logout() {
         boolean had;
         synchronized (lock) { had = token() != null; }
@@ -288,7 +264,6 @@ public final class FrostAuth {
         }
     }
 
-    /** Re-fetches and adopts current session state. */
     public Map<String, Object> session() {
         Map<String, Object> data = authed("GET", "/api/v1/sdk/session", null);
         synchronized (lock) { adopt(data); }
@@ -367,15 +342,10 @@ public final class FrostAuth {
 
     public Map<String, Object> appData() { return authed("GET", "/api/v1/sdk/app", null); }
 
-    /** File download by handle. Currently disabled server-side (route
-     *  unmounted) — mirrors the JS reference SDK, which throws. */
     public byte[] file(String fileId) {
-        throw new FrostAuthError("File downloads are disabled on this server",
-            FrostAuthError.Codes.SERVER_ERROR, 0, false);
+        throw new FrostAuthError("File downloads are disabled on this server", FrostAuthError.Codes.SERVER_ERROR, 0, false);
     }
 
-    /** Re-checks the licence/session with the server; falls back from a stale
-     *  session token to the stored licence key once. */
     public Map<String, Object> validate() {
         requireInit();
         boolean hasCred;
@@ -417,7 +387,6 @@ public final class FrostAuth {
             return t;
         });
 
-    /** Validates periodically (server cadence or explicit seconds) until stopped. */
     public void startHeartbeat(Integer intervalSeconds) {
         boolean hasCred;
         synchronized (lock) { hasCred = token() != null || storedKey != null; }
@@ -490,7 +459,6 @@ public final class FrostAuth {
         if (f != null) f.cancel(false);
     }
 
-    /** Tears down the client and drops the offline assertion. */
     public void close() {
         stopHeartbeat();
         synchronized (lock) {
@@ -506,7 +474,6 @@ public final class FrostAuth {
         }
     }
 
-    /** Verifies the last server-issued assertion locally. */
     public CheckOfflineResult checkOffline() {
         String a;
         String mid;
@@ -539,7 +506,6 @@ public final class FrostAuth {
         }
     }
 
-    // ── offline assertions ───────────────────────────────────────────────────
 
     public record AssertionResult(boolean ok, String reason, Map<String, Object> claims) {}
 
@@ -566,7 +532,6 @@ public final class FrostAuth {
         return null;
     }
 
-    /** Verifies a server-issued assertion against pinned raw keys. Fails closed. */
     public static AssertionResult VerifyAssertion(String assertion, Map<String, byte[]> pins, String hwid) {
         if (pins == null || pins.isEmpty()) return new AssertionResult(false, "no pinned public key", null);
         String[] parts = (assertion == null ? "" : assertion).split("\\.");
@@ -616,7 +581,6 @@ public final class FrostAuth {
         return new AssertionResult(true, "", claims);
     }
 
-    // ── crypto plumbing ──────────────────────────────────────────────────────
 
     static byte[] b64uDecode(String s) {
         return Base64.getUrlDecoder().decode(s.trim() + "===".substring((s.trim().length() + 3) % 4));
@@ -630,10 +594,6 @@ public final class FrostAuth {
         return Arrays.copyOfRange(der, 12, 44);
     }
 
-    /** Rebuilds a JCA Ed25519 PublicKey from the raw 32-byte encoding.
-     *  The encoding is a little-endian y coordinate with the x-parity bit in
-     *  the top bit of the last byte — BigInteger reads big-endian, so bytes
-     *  must be reversed and the parity bit stripped first. */
     static PublicKey rawToPublicKey(byte[] raw32) {
         try {
             boolean xOdd = (raw32[31] & 0x80) != 0;
@@ -666,7 +626,6 @@ public final class FrostAuth {
         }
     }
 
-    // ── machine identity ─────────────────────────────────────────────────────
 
     static String osName() {
         String os = System.getProperty("os.name", "").toLowerCase(Locale.ROOT);
@@ -690,7 +649,6 @@ public final class FrostAuth {
         }
     }
 
-    /** Scoped SHA-256 of the machine id — the raw id never leaves the device. */
     public static String hardwareId(String scope) {
         String s = (scope == null || scope.isBlank()) ? "frostauth" : scope;
         return sha256Hex(s + "|" + rawMachineId());
@@ -735,7 +693,7 @@ public final class FrostAuth {
                         try {
                             String v = Files.readString(Path.of(path)).trim();
                             if (!v.isBlank()) { found = v; break; }
-                        } catch (Exception ignore) { /* try next */ }
+                        } catch (Exception ignore) {   }
                     }
                 }
                 default -> { /* fall through to fallback */ }
@@ -803,9 +761,9 @@ public final class FrostAuth {
                             }
                         }
                     }
-                    default -> { /* keep unknown */ }
+                    default -> {   }
                 }
-            } catch (Exception ignore) { /* keep unknown */ }
+            } catch (Exception ignore) {   }
 
             String host = hostname();
             List<Map<String, String>> components = new ArrayList<>();
@@ -814,8 +772,6 @@ public final class FrostAuth {
             components.add(Map.of("n", "arch", "v", facet(System.getProperty("os.arch", "unknown"))));
             components.add(Map.of("n", "platform", "v", facet(osName())));
             components.add(Map.of("n", "host", "v", facet(host)));
-            // MAC facet is intentionally omitted in the Java port: enumerating
-            // NICs is slow and the server treats facets as advisory-only.
 
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("components", components);
@@ -826,7 +782,6 @@ public final class FrostAuth {
         }
     }
 
-    // ── DNS-hijack tripwire ──────────────────────────────────────────────────
 
     private void assertRealHost() {
         if (allowPrivateDns) return;
@@ -836,7 +791,7 @@ public final class FrostAuth {
             if (host == null || host.isBlank()) return;
             String bare = host.replaceAll("^\\[|\\]$", "");
             if (bare.equals("localhost") || bare.equals("127.0.0.1") || bare.equals("::1")) return;
-            if (bare.matches("[\\d.]+") || bare.contains(":")) return; // IP literal
+            if (bare.matches("[\\d.]+") || bare.contains(":")) return;
             for (InetAddress addr : InetAddress.getAllByName(bare)) {
                 if (addr.isLoopbackAddress() || addr.isSiteLocalAddress()
                     || addr.isLinkLocalAddress() || addr.isAnyLocalAddress()) {
@@ -854,9 +809,7 @@ public final class FrostAuth {
         }
     }
 
-    // ── transport ────────────────────────────────────────────────────────────
 
-    /** One request, parsed as plain JSON (catalog shape, no envelope). */
     private Map<String, Object> requestRaw(String method, String path, Map<String, Object> body) {
         Round round = oneRound(method, path, body, null);
         try {
@@ -890,7 +843,6 @@ public final class FrostAuth {
     }
 
     private void adopt(Map<String, Object> data) {
-        // caller holds lock
         if (data == null) return;
         Object sess = data.get("session");
         if (sess instanceof Map<?, ?> s && s.get("token") != null) {
@@ -943,7 +895,6 @@ public final class FrostAuth {
         return requestEnvelope("POST", "/api/v1/validate", payload);
     }
 
-    /** One retry-aware request; returns response.data on success, throws otherwise. */
     private Map<String, Object> requestEnvelope(String method, String path, Map<String, Object> body) {
         return requestEnvelope(method, path, body, null);
     }
@@ -956,7 +907,7 @@ public final class FrostAuth {
             try {
                 round = oneRound(method, path, body, token);
             } catch (FrostAuthError e) {
-                if (FrostAuthError.Codes.SIGNATURE.equals(e.code)) throw e; // never retry a bad signature
+                if (FrostAuthError.Codes.SIGNATURE.equals(e.code)) throw e;
                 last = e;
                 continue;
             }
@@ -966,7 +917,7 @@ public final class FrostAuth {
                 try {
                     int parsed = Integer.parseInt(ra.trim());
                     if (parsed > 0 && parsed <= MAX_RETRY_AFTER_SECONDS) wait = parsed;
-                } catch (NumberFormatException ignore) { /* default 2 */ }
+                } catch (NumberFormatException ignore) {   }
                 last = new FrostAuthError("Rate limited by the licence server",
                     FrostAuthError.Codes.RATE_LIMITED, 429, true, null, wait);
                 if (attempt < retries) { sleep(wait * 1000L); continue; }
@@ -1016,7 +967,6 @@ public final class FrostAuth {
             if (v instanceof String s) return s;
             if (v != null) return v;
         }
-        // catalog-shaped errors keep message at the top level
         if ("message".equals(field)) return payload.get("message");
         return null;
     }
@@ -1102,7 +1052,7 @@ public final class FrostAuth {
                 verifier.initVerify(key);
                 verifier.update(material.getBytes(StandardCharsets.UTF_8));
                 if (verifier.verify(signature)) return;
-            } catch (Exception ignore) { /* try next key */ }
+            } catch (Exception ignore) {   }
         }
         throw sigReject(status, "the signature did not match");
     }
@@ -1112,7 +1062,6 @@ public final class FrostAuth {
             FrostAuthError.Codes.SIGNATURE, status, false);
     }
 
-    // ── small helpers ────────────────────────────────────────────────────────
 
     private static String str(Object o) { return o == null ? "" : String.valueOf(o); }
 
