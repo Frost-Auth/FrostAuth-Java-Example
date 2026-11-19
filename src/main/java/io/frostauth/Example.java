@@ -12,10 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 
-/** FrostAuth Java SDK — console example. Mirrors sdk/example.mjs output. */
 public final class Example {
 
-    /** Locale-style timestamp, e.g. 9/16/2026, 6:08:02 PM (system zone). */
     private static final DateTimeFormatter LOC =
         DateTimeFormatter.ofPattern("M/d/yyyy, h:mm:ss a");
 
@@ -23,8 +21,6 @@ public final class Example {
         if (iso == null || iso.toString().isBlank()) return "unknown";
         try {
             String s = iso.toString().trim();
-            // Server sometimes sends millis-less ISO ("2026-09-15T18:09:11Z").
-            // Instant.parse needs the fraction, OffsetDateTime doesn't care.
             Instant instant;
             try {
                 instant = Instant.parse(s);
@@ -42,7 +38,6 @@ public final class Example {
             "0809wkVP",
             "33abf48a-8e33-4df5-a4bd-d79195704d52",
             "1.0.2"
-            // , "https://api.frostauth.cc"
         );
 
         try {
@@ -111,14 +106,6 @@ public final class Example {
         }
     }
 
-    /**
-     * Snapshot-backed profile readout. Everything here comes from the local
-     * snapshot (populated by activate/register/login on every plan), so it works
-     * with or without a session token — unlike appData/fetchOnline, which are
-     * session-backed and fail on plans without tokenSystem.
-     * Only prints fields the backend actually returns (licenseView + accountView
-     * + device + product) — no invented email/key/plan lookups.
-     */
     private static void showUser(Map<String, Object> snap) {
         Map<String, Object> license = section(snap, "license");
         Map<String, Object> account = section(snap, "account");
@@ -188,9 +175,6 @@ public final class Example {
     }
 
     private static void dashboard(FrostAuth app) {
-        // Snapshot-backed profile only. Session-backed reads (appData/online)
-        // are plan-gated (tokenSystem: Developer/Pro) and print "unknown" on
-        // other plans, so they are not shown here at all.
         Map<String, Object> snap = app.snapshot();
 
         showUser(snap);
@@ -226,8 +210,6 @@ public final class Example {
             System.out.println("\nWebhook test failed: " + (e.code == null ? "" : e.code + " ") + e.getMessage());
         }
 
-        // Build-hash extra: hash THIS file's contents when the product has
-        // CHECK HASH enabled; pass it to activate/register/login.
         try {
             byte[] self = Files.readAllBytes(new File(Example.class
                 .getProtectionDomain().getCodeSource().getLocation().toURI()).toPath());
@@ -237,13 +219,13 @@ public final class Example {
             System.out.println("\nBuild hash (this file):");
             System.out.println("  " + hex);
             System.out.println("  Pass it to activate/register/login (hash parameter) when the product requires it.");
-        } catch (Exception ignore) { /* best-effort */ }
+        } catch (Exception ignore) {   }
 
         System.out.println("\nClosing app in 10 seconds...");
-        try { Thread.sleep(10_000); } catch (InterruptedException ignore) { /* exit */ }
+        try { Thread.sleep(10_000); } catch (InterruptedException ignore) {   }
         try {
             app.logout();
-        } catch (FrostAuthError ignore) { /* already closed */ }
+        } catch (FrostAuthError ignore) {   }
     }
 
     private static String strOrUnknown(Map<String, Object> map, String key) {
