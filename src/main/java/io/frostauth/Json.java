@@ -5,12 +5,10 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Minimal RFC 8259 JSON parser/writer. No external dependencies. */
 public final class Json {
 
     private Json() {}
 
-    // ── parse ────────────────────────────────────────────────────────────────
 
     public static Object parse(String text) {
         Parser p = new Parser(text);
@@ -160,7 +158,6 @@ public final class Json {
         }
     }
 
-    // ── write ────────────────────────────────────────────────────────────────
 
     public static String write(Object value) {
         StringBuilder sb = new StringBuilder();
@@ -196,7 +193,6 @@ public final class Json {
             sb.append(']');
             return;
         }
-        // any other object: stringify
         writeStr(String.valueOf(v), sb);
     }
 
