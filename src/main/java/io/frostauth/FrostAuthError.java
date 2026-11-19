@@ -1,6 +1,5 @@
 package io.frostauth;
 
-/** Error thrown by every FrostAuth SDK call. */
 public class FrostAuthError extends RuntimeException {
 
     public final String code;
@@ -13,8 +12,7 @@ public class FrostAuthError extends RuntimeException {
         this(message, code, status, retryable, null, 0);
     }
 
-    public FrostAuthError(String message, String code, int status, boolean retryable,
-                          String requestId, int retryAfterSeconds) {
+    public FrostAuthError(String message, String code, int status, boolean retryable, String requestId, int retryAfterSeconds) {
         super(message);
         this.code = code == null ? Codes.SERVER_ERROR : code;
         this.status = status;
