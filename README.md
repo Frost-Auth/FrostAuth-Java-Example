@@ -27,23 +27,38 @@ FrostAuth is a cloud licensing API with device-bound keys, app accounts, and a d
 
 ## Requirements
 
-JDK 17 or newer. The SDK has no external dependencies. The included `pom.xml` defines `cc.frostauth:frostauth-sdk:1.0.0` for Maven builds.
+Install JDK 17 or newer and Apache Maven. Check that your terminal can find both:
+
+```powershell
+java -version
+mvn -version
+```
+
+The SDK has no external runtime dependencies. Its Maven coordinates are `cc.frostauth:frostauth-sdk:1.0.0`.
 
 ## Build
 
-Run these commands from the SDK directory after setting your product details in the example.
+Open a terminal in the directory containing `pom.xml`. To run the console example, first set the owner ID, product ID, and app version in `src/main/java/io/frostauth/Example.java`. To build only the library, run Maven with the default example settings.
 
-```bash
-javac --release 17 -d out $(find src/main/java -name "*.java")
-java -cp out io.frostauth.Example
+```powershell
+mvn clean package
 ```
 
-On Windows PowerShell, compile with `javac --release 17 -d out (Get-ChildItem -Recurse src/main/java -Filter *.java).FullName`. To package the example after compiling:
+Maven writes `target/frostauth-sdk-1.0.0.jar` and includes the SDK license. The `target/` folder is ignored by Git.
+
+Run the console example from PowerShell:
+
+```powershell
+java -cp .\target\frostauth-sdk-1.0.0.jar io.frostauth.Example
+```
+
+On Linux or macOS, use a forward slash in the JAR path:
 
 ```bash
-jar cfe frostauth-java-example.jar io.frostauth.Example -C out .
-java -jar frostauth-java-example.jar
+java -cp target/frostauth-sdk-1.0.0.jar io.frostauth.Example
 ```
+
+The Java SDK workflow runs a clean Maven build on GitHub and checks that the JAR contains both the SDK and the license.
 
 ## `FrostAuth` instance definition
 
