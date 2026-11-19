@@ -10,10 +10,10 @@ Open an issue if you can reproduce the failure with the example. Include your Fr
 
 ## Security practices
 
-- Keep credentials, license keys, and session tokens out of logs.
-- Handle API errors by code because the server can change the message text.
-- Enforce access to server resources on the server.
-- Run your release signing and integrity checks before shipping.
+- If you use VMProtect or Themida, put the protector's markers around the license checks.
+- Run integrity checks during the session. End the session if a check detects tampering.
+- Keep files you need to protect on the server. Clear temporary buffers when the app is done with them.
+- Use the API to recheck licenses and enforce access to server resources there. A local `isValid` flag alone can't enforce access.
 
 ## Copyright License
 
